@@ -1,0 +1,43 @@
+{
+  "skill_name": "herdr",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I'm inside a Herdr session (HERDR_ENV=1 is set, I'm in pane 1-2). I want to spawn a second Claude instance in a new pane to review the test coverage in src/api/ while I keep working here. How do I do that?",
+      "expected_output": "Use herdr agent start to spawn a named agent, then herdr agent send to give it the task — keeping focus on the current pane throughout",
+      "files": [],
+      "assertions": [
+        "Response uses herdr agent start to spawn the new Claude instance (preferred over pane split for named agents)",
+        "Response gives the new agent a name/label so it can be addressed by name afterward",
+        "Response keeps focus on the current pane (uses --no-focus default or explicitly avoids --focus)",
+        "Response shows how to send the review task to the new agent (herdr agent send or herdr pane run)",
+        "Response does NOT use sleep as a waiting mechanism"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "I've got two agents running in my Herdr session. The codex agent in pane 1-1 is refactoring the auth module and will exit when done. I need to wait for it to finish, then read what it did, and only then start my own work on the tests. Show me the commands.",
+      "expected_output": "herdr wait agent-status with --status done (not idle, since codex exits), followed by herdr pane read with --source recent-unwrapped for clean output",
+      "files": [],
+      "assertions": [
+        "Response uses --status done (not idle) because the prompt says codex will exit when done",
+        "Response includes a --timeout flag on the wait command",
+        "Response uses herdr pane read with --source recent-unwrapped (not just recent) to get clean output for reading",
+        "Response explains or implies the done vs idle distinction",
+        "Response does NOT suggest polling in a loop or using sleep"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "How do I use Herdr to run my test suite in a separate pane while keeping my Claude session focused?",
+      "expected_output": "Skill checks HERDR_ENV, notes the guard, still provides the correct commands with --no-focus and proper pane ID parsing from JSON",
+      "files": [],
+      "assertions": [
+        "Response mentions HERDR_ENV or the guard condition (not running inside Herdr)",
+        "Response does NOT silently provide commands as if they will definitely work in the current context",
+        "Response provides the correct herdr pane split command with --no-focus",
+        "Response shows parsing the new pane ID from the JSON output (python3 or jq), not hardcoding it"
+      ]
+    }
+  ]
+}
