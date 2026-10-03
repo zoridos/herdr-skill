@@ -1,0 +1,83 @@
+name: opencode
+
+# Ask-only OpenCode agent: someone with write access starts an issue/PR comment
+# or PR line comment with /oc or /opencode; OpenCode reads the repo and replies.
+# It cannot push, open PRs or merge (contents: read, plan agent). No automatic
+# triggers, so the one-final-review-per-PR policy is unaffected.
+#
+# Auth: the repo's own GITHUB_TOKEN (no third-party GitHub App, no OIDC).
+# Model: OpenCode Zen free Muse Spark 1.3 (no API key: nothing to leak or spend).
+# The OpenCode linux-x64 binary is downloaded at a fixed version and checked
+# against a pinned sha512 before it runs. No install scripts run.
+# No event fields are interpolated into run: scripts; opencode reads the event
+# payload itself.
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+
+jobs:
+  opencode:
+    # Command must start the comment. author_association is a cheap pre-filter;
+    # opencode itself re-checks that the commenter has write/admin access.
+    if: >-
+      (github.event.comment.body == '/oc' ||
+       startsWith(github.event.comment.body, '/oc ') ||
+       startsWith(github.event.comment.body, '/opencode')) &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: opencode-${{ github.event.issue.number || github.event.pull_request.number }}
+      cancel-in-progress: false
+    permissions:
+      contents: read        # read-only: no pushes, branches, PR creation or merges
+      issues: write         # reply comments and reactions
+      pull-requests: write  # replies on PR line comments
+    env:
+      OPENCODE_VERSION: 1.18.34
+      OPENCODE_BIN_INTEGRITY: sha512-RTAMjCve4euxP2QKLuvRmdoW5J5DQK1DiZqt+7slfixyjAEi79QC2Df2oYKogibaAI4IEU8uzenoJeEl3k+UEw==
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 1
+          # Persisted so the handler can `git fetch` PR heads in this private
+          # repo. The token is read-only for contents, so pushes still 403.
+
+      - name: Install OpenCode binary (pinned, integrity-checked)
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP"
+          curl -fsSL -o oc.tgz "https://registry.npmjs.org/opencode-linux-x64/-/opencode-linux-x64-${OPENCODE_VERSION}.tgz"
+          got="sha512-$(openssl dgst -sha512 -binary oc.tgz | base64 -w0)"
+          if [ "$got" != "$OPENCODE_BIN_INTEGRITY" ]; then
+            echo "::error::opencode binary integrity mismatch: $got"
+            exit 1
+          fi
+          mkdir -p oc && tar -xzf oc.tgz -C oc
+          sudo install -m 0755 oc/package/bin/opencode /usr/local/bin/opencode
+          opencode --version
+
+      - name: Run OpenCode
+        run: opencode github run
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          USE_GITHUB_TOKEN: "true"
+          MODEL: opencode/muse-spark-1.3-contributor-free
+          VARIANT: medium
+          SHARE: "false"
+          # v1.18.34 ignores an AGENT env var, so set the agent via config.
+          # Ignore any opencode.json/.opencode in the repo (PR-controlled),
+          # use the read-only plan agent, and deny web fetch/search, edits and
+          # paths outside the checkout. bash cannot be denied: Zen's free tier
+          # rejects sessions without it ("can only be used from within
+          # OpenCode"). Residual risk: an injected prompt could use bash to
+          # leak GITHUB_TOKEN, which here can only comment for <=30 minutes.
+          OPENCODE_DISABLE_PROJECT_CONFIG: "true"
+          OPENCODE_CONFIG_CONTENT: '{"default_agent":"plan"}'
+          # Anything left on "ask" hangs in github run mode, so deny doom_loop
+          # and .env reads outright.
+          OPENCODE_PERMISSION: '{"webfetch":"deny","websearch":"deny","edit":"deny","external_directory":"deny","doom_loop":"deny","read":{"*":"allow","*.env":"deny","*.env.*":"deny","*.env.example":"allow"}}'
