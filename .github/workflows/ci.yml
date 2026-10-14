@@ -1,0 +1,72 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    name: ci
+    # Public repo: runs on GitHub-hosted runners only. Never self-hosted.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate skill, links, and evals
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, os, re, sys
+          from urllib.parse import unquote
+
+          errors = []
+
+          # 1. SKILL.md frontmatter must carry name and description.
+          with open("SKILL.md", encoding="utf-8") as f:
+              text = f.read()
+          m = re.match(r"^---\n(.*?)\n---\n", text, re.S)
+          if not m:
+              errors.append("SKILL.md: missing YAML frontmatter block")
+          else:
+              front = m.group(1)
+              for key in ("name", "description"):
+                  if not re.search(rf"^{key}:", front, re.M):
+                      errors.append(f"SKILL.md: frontmatter missing '{key}'")
+              nm = re.search(r"^name:\s*(\S+)", front, re.M)
+              if nm and nm.group(1) == "":
+                  errors.append("SKILL.md: frontmatter 'name' is empty")
+
+          # 2. Every relative link in README.md and SKILL.md must resolve.
+          link_re = re.compile(r"\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
+          for doc in ("README.md", "SKILL.md"):
+              base = os.path.dirname(doc)
+              with open(doc, encoding="utf-8") as f:
+                  for lineno, line in enumerate(f, 1):
+                      for target in link_re.findall(line):
+                          if re.match(r"^(https?:|mailto:|#)", target):
+                              continue
+                          path = unquote(target.split("#", 1)[0])
+                          if not path:
+                              continue
+                          full = os.path.normpath(os.path.join(base, path))
+                          if not os.path.exists(full):
+                              errors.append(f"{doc}:{lineno}: broken relative link '{target}'")
+
+          # 3. evals/evals.json is data, not a test runner: it must parse.
+          try:
+              with open("evals/evals.json", encoding="utf-8") as f:
+                  evals = json.load(f)
+              if not isinstance(evals.get("evals"), list):
+                  errors.append("evals/evals.json: missing 'evals' list")
+          except (OSError, ValueError) as exc:
+              errors.append(f"evals/evals.json: {exc}")
+
+          if errors:
+              print("\n".join(errors), file=sys.stderr)
+              sys.exit(1)
+          print("ok: frontmatter, relative links, and evals JSON are valid")
+          PY
