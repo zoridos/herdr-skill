@@ -25,7 +25,7 @@ jobs:
 
           errors = []
 
-          # 1. SKILL.md frontmatter must carry name and description.
+          # 1. SKILL.md frontmatter must carry a non-empty name and description.
           with open("SKILL.md", encoding="utf-8") as f:
               text = f.read()
           m = re.match(r"^---\n(.*?)\n---\n", text, re.S)
@@ -33,19 +33,33 @@ jobs:
               errors.append("SKILL.md: missing YAML frontmatter block")
           else:
               front = m.group(1)
+
+              def has_value(key):
+                  line = re.search(rf"^{key}:[ \t]*(.*)$", front, re.M)
+                  if not line:
+                      return False
+                  if line.group(1).strip() not in ("", "|", ">", "|-", ">-", "|+", ">+"):
+                      return True
+                  # Block scalar: needs at least one indented, non-blank continuation line.
+                  return bool(re.match(r"\n[ \t]+\S", front[line.end():]))
+
               for key in ("name", "description"):
-                  if not re.search(rf"^{key}:", front, re.M):
-                      errors.append(f"SKILL.md: frontmatter missing '{key}'")
-              nm = re.search(r"^name:\s*(\S+)", front, re.M)
-              if nm and nm.group(1) == "":
-                  errors.append("SKILL.md: frontmatter 'name' is empty")
+                  if not has_value(key):
+                      errors.append(f"SKILL.md: frontmatter '{key}' missing or empty")
 
           # 2. Every relative link in README.md and SKILL.md must resolve.
+          #    Links inside fenced code blocks are examples, not links.
           link_re = re.compile(r"\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
           for doc in ("README.md", "SKILL.md"):
               base = os.path.dirname(doc)
+              in_fence = False
               with open(doc, encoding="utf-8") as f:
                   for lineno, line in enumerate(f, 1):
+                      if line.lstrip().startswith("```"):
+                          in_fence = not in_fence
+                          continue
+                      if in_fence:
+                          continue
                       for target in link_re.findall(line):
                           if re.match(r"^(https?:|mailto:|#)", target):
                               continue
