@@ -1,6 +1,6 @@
 # herdr skill
 
-An agent skill for [Herdr](https://herdr.dev) — a terminal-native agent multiplexer. Gives coding agents (Claude, Codex, OpenCode, etc.) the ability to control their Herdr environment: split panes, spawn agents, read pane output, and wait for state changes — all via CLI commands over a local Unix socket.
+An agent skill for [Herdr](https://herdr.dev) — a terminal-native agent multiplexer. Gives coding agents (Claude, Codex, etc.) the ability to control their Herdr environment: split panes, spawn agents, read pane output, and wait for state changes — all via CLI commands over a local Unix socket.
 
 ## What it does
 
@@ -46,7 +46,6 @@ Place `SKILL.md` in your agent's skills directory:
 | Claude    | `~/.claude/skills/herdr/`     |
 | Clawde    | `~/.clawde/skills/herdr/`     |
 | Codex     | `~/.codex/skills/herdr/`      |
-| OpenCode  | `~/.config/opencode/skills/herdr/` |
 | Pi        | `~/.config/pi/skills/herdr/`  |
 | Hermes    | `~/.config/hermes/skills/herdr/` |
 
