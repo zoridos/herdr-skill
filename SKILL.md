@@ -6,7 +6,7 @@ description: >
   a local Unix socket. Use this skill whenever HERDR_ENV=1 is set, or whenever
   the task involves running things in parallel panes, waiting for a test/server/
   agent to finish, reading what another agent is doing, or coordinating between
-  multiple Claude/Codex/opencode instances in the same Herdr session. If you're
+  multiple Claude/Codex instances in the same Herdr session. If you're
   orchestrating agents and HERDR_ENV=1, default to this skill rather than
   improvising shell patterns.
 ---
